@@ -23,6 +23,7 @@ import static org.neo4j.ogm.support.FileUtils.*;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -56,6 +57,8 @@ public class DriverServiceTest {
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 try {
                     deleteDirectory(directories);
+                } catch (NoSuchFileException e) {
+                    // ignore
                 } catch (IOException e) {
                     throw new RuntimeException("Failed to delete temporary files in " + directories, e);
                 }

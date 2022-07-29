@@ -107,12 +107,42 @@ public class SessionFactory {
      * Indexes will not be automatically created.
      *
      * @param driver            driver to be used with this SessionFactory
-     * @param useStrictQuerying Flag wether to use strict querying or not. Overwrites configuration settings (from the driver).
+     * @param useStrictQuerying Flag whether to use strict querying or not. Overwrites configuration settings (from the driver).
      * @param packages          The packages to scan for domain objects
      */
     public SessionFactory(Driver driver, boolean useStrictQuerying, String... packages) {
 
         this.metaData = new MetaData(driver.getTypeSystem(), packages);
+        this.driver = driver;
+        this.useStrictQuerying = useStrictQuerying;
+        this.eventListeners = new CopyOnWriteArrayList<>();
+        this.entityInstantiator = new ReflectionEntityInstantiator(metaData);
+    }
+
+    /**
+     * Create a session factory with given driver
+     * Use this constructor when you need to provide fully customized driver.
+     * Indexes will not be automatically created.
+     *
+     * @param driver            driver to be used with this SessionFactory
+     * @param metaData          MetaData describing domain objects
+     */
+    public SessionFactory(Driver driver, MetaData metaData) {
+        this(driver, Optional.ofNullable(driver.getConfiguration()).map(Configuration::getUseStrictQuerying).orElse(true), metaData);
+    }
+
+    /**
+     * Create a session factory with given driver
+     * Use this constructor when you need to provide fully customized driver.
+     * Indexes will not be automatically created.
+     *
+     * @param driver            driver to be used with this SessionFactory
+     * @param useStrictQuerying Flag whether to use strict querying or not. Overwrites configuration settings (from the driver).
+     * @param metaData          MetaData describing domain objects
+     */
+    public SessionFactory(Driver driver, boolean useStrictQuerying, MetaData metaData) {
+
+        this.metaData = metaData;
         this.driver = driver;
         this.useStrictQuerying = useStrictQuerying;
         this.eventListeners = new CopyOnWriteArrayList<>();

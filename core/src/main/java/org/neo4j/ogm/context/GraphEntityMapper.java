@@ -289,7 +289,7 @@ public class GraphEntityMapper {
         } else {
             Object value = property.getValue();
             // merge iterable / arrays and co-erce to the correct attribute type
-            if (writer.type().isArray() || Iterable.class.isAssignableFrom(writer.type())) {
+            if (writer.isArray() || writer.isIterable()) {
                 Class<?> paramType = writer.type();
                 Class elementType = underlyingElementType(classInfo, property.getKey().toString());
                 if (paramType.isArray()) {
@@ -545,7 +545,7 @@ public class GraphEntityMapper {
         FieldInfo writer = EntityAccessManager
             .getIterableField(classInfo, valueType, relationshipType, relationshipDirection);
         if (writer != null) {
-            if (writer.type().isArray() || Iterable.class.isAssignableFrom(writer.type())) {
+            if (writer.isArray() || writer.isIterable()) {
                 FieldInfo reader = EntityAccessManager
                     .getIterableField(classInfo, valueType, relationshipType, relationshipDirection);
                 Object currentValues;

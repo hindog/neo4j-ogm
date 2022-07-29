@@ -19,7 +19,6 @@
 package org.neo4j.ogm.metadata.reflect;
 
 import java.lang.reflect.Array;
-import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -28,6 +27,7 @@ import java.lang.reflect.WildcardType;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.neo4j.ogm.metadata.FieldAccessor;
 import org.neo4j.ogm.metadata.KotlinDetector;
 
 /**
@@ -41,26 +41,6 @@ import org.neo4j.ogm.metadata.KotlinDetector;
 public final class GenericUtils {
 
     /**
-     * Helper to check whether a given field is a generic field (A field described by a type variable).
-     *
-     * @param field The field to check for a type variable
-     * @return True, if {@code field} is a generic field.
-     */
-    public static boolean isGenericField(Field field) {
-        return field.getGenericType() instanceof TypeVariable;
-    }
-
-    /**
-     * Helper to check whether a given field is a parameterized field (A field described by a type variable presenting a parameter type).
-     *
-     * @param field The field to check for a parameterized type
-     * @return True, if {@code field} is a parameterized field.
-     */
-    public static boolean isParameterizedField(Field field) {
-        return field.getGenericType() instanceof ParameterizedType;
-    }
-
-    /**
      * Tries to discover type of given field.
      * If the field ha a concrete type then there is nothing to do and it's type is returned.
      * If the field has a generic type then it traverses class hierarchy of the concrete class to discover
@@ -71,11 +51,11 @@ public final class GenericUtils {
      * @param concreteClass concrete class that either declares the field or is a subclass of such class
      * @return type of the field
      */
-    public static Class findFieldType(Field field, Class concreteClass) {
+    public static Class findFieldType(FieldAccessor field, Class concreteClass) {
 
         Class<?>[] arguments = resolveRawArguments(field.getGenericType(), concreteClass);
         if (arguments == null || arguments.length == 0 || arguments[0] == Unknown.class) {
-            return isParameterizedField(field) ? Object.class : field.getType();
+            return field.isParameterized() ? Object.class : field.getType();
         }
 
         return arguments[0];

@@ -18,7 +18,6 @@
  */
 package org.neo4j.ogm.metadata.schema;
 
-import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Map;
 
@@ -26,8 +25,8 @@ import org.neo4j.ogm.annotation.Relationship.Direction;
 import org.neo4j.ogm.metadata.ClassInfo;
 import org.neo4j.ogm.metadata.DescriptorMappings;
 import org.neo4j.ogm.metadata.DomainInfo;
+import org.neo4j.ogm.metadata.FieldAccessor;
 import org.neo4j.ogm.metadata.FieldInfo;
-import org.neo4j.ogm.metadata.reflect.GenericUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -145,8 +144,9 @@ public class DomainInfoSchemaBuilder {
 
     private NodeImpl getNodeByFieldAndContainingClass(ClassInfo classInfo, FieldInfo fieldInfo) {
         NodeImpl toNode;
-        Field endField = fieldInfo.getField();
-        Class endType = GenericUtils.findFieldType(endField, classInfo.getUnderlyingClass());
+        FieldAccessor endField = fieldInfo.getField();
+
+        Class endType = classInfo.findFieldType(endField);
         toNode = getNodeByTypeDescriptor(endType.getName());
         return toNode;
     }

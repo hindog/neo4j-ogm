@@ -18,7 +18,6 @@
  */
 package org.neo4j.ogm.metadata;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -31,11 +30,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.neo4j.ogm.annotation.Transient;
 import org.neo4j.ogm.driver.TypeSystem;
 import org.neo4j.ogm.metadata.reflect.GenericUtils;
+import org.neo4j.ogm.metadata.reflect.ReflectionFieldAccessor;
 
 /**
  * @author Vince Bickers
@@ -46,17 +47,19 @@ public class FieldsInfo {
     private final static String SDC_TRANSIENT = "org.springframework.data.annotation.Transient";
     private final Map<String, FieldInfo> fields;
 
-    FieldsInfo(ClassInfo classInfo, Class<?> clazz, Field delegateHolder, TypeSystem typeSystem) {
+    FieldsInfo(ClassInfo classInfo, Class<?> clazz, FieldAccessor delegateHolder, TypeSystem typeSystem) {
         this.fields = new HashMap<>();
 
         // Fields influenced by this class are all all declared fields plus
         // all generics fields of possible superclasses that resolve to concrete
         // types through this class.
-        List<Field> allFieldsInfluencedByThisClass = new ArrayList<>();
+        List<FieldAccessor> allFieldsInfluencedByThisClass = new ArrayList<>();
         allFieldsInfluencedByThisClass.addAll(getGenericOrParameterizedFieldsInHierarchyOf(clazz));
-        allFieldsInfluencedByThisClass.addAll(Arrays.asList(clazz.getDeclaredFields()));
+        allFieldsInfluencedByThisClass.addAll(
+            Arrays.stream(clazz.getDeclaredFields()).map(field -> new ReflectionFieldAccessor(field)).collect(Collectors.toList())
+        );
 
-        for (Field field : allFieldsInfluencedByThisClass) {
+        for (FieldAccessor field : allFieldsInfluencedByThisClass) {
 
             final int modifiers = field.getModifiers();
             if (!(field.isSynthetic() || Modifier.isTransient(modifiers) || Modifier.isStatic(modifiers))) {
@@ -73,7 +76,7 @@ public class FieldsInfo {
         }
     }
 
-    private static String findTypeParameterDescriptor(Field field, Class<?> clazz) {
+    private static String findTypeParameterDescriptor(FieldAccessor field, Class<?> clazz) {
 
         String typeParameterDescriptor = null;
 
@@ -88,15 +91,16 @@ public class FieldsInfo {
         return typeParameterDescriptor;
     }
 
-    private static List<Field> getGenericOrParameterizedFieldsInHierarchyOf(Class<?> clazz) {
+    private static List<FieldAccessor> getGenericOrParameterizedFieldsInHierarchyOf(Class<?> clazz) {
 
-        Predicate<Field> predicate = GenericUtils::isGenericField;
-        predicate = predicate.or(GenericUtils::isParameterizedField);
+        Predicate<FieldAccessor> predicate = FieldAccessor::isGeneric;
+        predicate = predicate.or(FieldAccessor::isParameterized);
 
-        List<Field> genericFieldsInHierarchy = new ArrayList<>();
+        List<FieldAccessor> genericFieldsInHierarchy = new ArrayList<>();
         Class<?> currentClass = clazz.getSuperclass();
         while (currentClass != null) {
             Stream.of(currentClass.getDeclaredFields())
+                .map(ReflectionFieldAccessor::new)
                 .filter(predicate)
                 .forEach(genericFieldsInHierarchy::add);
             currentClass = currentClass.getSuperclass();

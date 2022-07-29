@@ -18,14 +18,11 @@
  */
 package org.neo4j.ogm.session.delegates;
 
-import java.lang.reflect.Array;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.function.Predicate;
 
 import org.neo4j.ogm.context.EntityGraphMapper;
 import org.neo4j.ogm.context.WriteProtectionTarget;
+import org.neo4j.ogm.metadata.MetaData;
 import org.neo4j.ogm.session.Neo4jSession;
 import org.neo4j.ogm.session.WriteProtectionStrategy;
 import org.neo4j.ogm.session.request.RequestExecutor;
@@ -54,39 +51,22 @@ public class SaveDelegate extends SessionDelegate {
     public <T> void save(T object, int depth) {
 
         SaveEventDelegate eventsDelegate = new SaveEventDelegate(session);
+        MetaData metaData = session.metaData();
 
-        EntityGraphMapper entityGraphMapper = new EntityGraphMapper(session.metaData(), session.context());
+        EntityGraphMapper entityGraphMapper = new EntityGraphMapper(metaData, session.context());
         if (this.writeProtectionStrategy != null) {
             entityGraphMapper.addWriteProtection(this.writeProtectionStrategy.get());
         }
 
-        Iterable<T> objects;
-        if (object.getClass().isArray()) {
-            int length = Array.getLength(object);
-            List<T> copy = new ArrayList<>(length);
-            for (int i = 0; i < length; i++) {
-                T arrayElement = (T) Array.get(object, i);
-                copy.add(arrayElement);
-            }
-            objects = copy;
-        } else if (Iterable.class.isAssignableFrom(object.getClass())) {
-            objects = (Iterable<T>) object;
-        } else if (session.metaData().classInfo(object) != null) {
-            objects = Collections.singletonList(object);
-        } else {
-            throw new IllegalArgumentException("Class " + object.getClass() + " is not a valid entity class. "
-                + "Please check the entity mapping.");
-        }
-
         if (session.eventsEnabled()) {
-            objects.forEach(item -> {
+            metaData.forEach(object, item -> {
                 eventsDelegate.preSave(item);
                 entityGraphMapper.map(item, depth);
             });
             requestExecutor.executeSave(entityGraphMapper.compileContext());
             eventsDelegate.postSave();
         } else {
-            objects.forEach(item -> entityGraphMapper.map(item, depth));
+            metaData.forEach(object, item -> entityGraphMapper.map(item, depth));
             requestExecutor.executeSave(entityGraphMapper.compileContext());
         }
     }

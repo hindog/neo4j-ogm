@@ -20,9 +20,7 @@ package org.neo4j.ogm.metadata;
 
 import static org.neo4j.ogm.metadata.ClassInfo.*;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Objects;
 
 /**
@@ -34,11 +32,11 @@ public class MethodInfo {
 
     private final String name;
     private final ObjectAnnotations annotations;
-    private final Method method;
+    private final MethodAccessor method;
     /**
      * Optional field holding a delegate, from which this method was derived.
      */
-    private final Field delegateHolder;
+    private final FieldAccessor delegateHolder;
 
     /**
      * Creates an info object for the given method and its declared annotation.
@@ -47,7 +45,7 @@ public class MethodInfo {
      * @param delegateHolder
      * @return A new method info object.
      */
-    static MethodInfo of(Method method, Field delegateHolder) {
+    static MethodInfo of(MethodAccessor method, FieldAccessor delegateHolder) {
         ObjectAnnotations objectAnnotations = ObjectAnnotations.of(method.getDeclaredAnnotations());
         return new MethodInfo(method, delegateHolder, objectAnnotations);
     }
@@ -57,7 +55,7 @@ public class MethodInfo {
      *
      * @param method The method.
      */
-    private MethodInfo(Method method, Field delegateHolder, ObjectAnnotations annotations) {
+    private MethodInfo(MethodAccessor method, FieldAccessor delegateHolder, ObjectAnnotations annotations) {
         this.method = method;
         this.name = method.getName();
         this.annotations = annotations;
@@ -78,7 +76,7 @@ public class MethodInfo {
      *
      * @return a Method, if it exists on the corresponding class.
      */
-    public Method getMethod() {
+    public MethodAccessor getMethod() {
         return method;
     }
 
@@ -101,9 +99,6 @@ public class MethodInfo {
 
     public Object invoke(Object target, Object... args)
         throws SecurityException, IllegalAccessException, InvocationTargetException {
-        if (!method.isAccessible()) {
-            method.setAccessible(true);
-        }
         return method.invoke(getInstanceOrDelegate(target, delegateHolder), args);
     }
 }

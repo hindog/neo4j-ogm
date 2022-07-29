@@ -20,7 +20,6 @@ package org.neo4j.ogm.metadata;
 
 import static java.util.stream.Collectors.*;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -28,6 +27,8 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
+
+import org.neo4j.ogm.metadata.reflect.ReflectionMethodAccessor;
 
 /**
  * @author Vince Bickers
@@ -38,14 +39,14 @@ public class MethodsInfo {
 
     private final Set<MethodInfo> methods;
 
-    MethodsInfo(Class<?> cls, Field delegateHolder) {
+    MethodsInfo(Class<?> cls, FieldAccessor delegateHolder) {
         this.methods = new HashSet<>();
 
         Class<?> currentClass = cls;
         do {
             Set<MethodInfo> methodInfoOfCurrentClass = Arrays.stream(currentClass.getDeclaredMethods()) //
                 .filter(MethodsInfo::includeMethod) //
-                .map(method -> MethodInfo.of(method, delegateHolder)) //
+                .map(method -> MethodInfo.of(new ReflectionMethodAccessor(method), delegateHolder)) //
                 .collect(toSet());
 
             // Prioritize annotated methods from concrete classes respectively classes lower in the hierarchy.

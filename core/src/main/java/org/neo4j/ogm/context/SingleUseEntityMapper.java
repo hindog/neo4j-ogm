@@ -39,7 +39,6 @@ import org.neo4j.ogm.metadata.MetaData;
 import org.neo4j.ogm.metadata.ObjectAnnotations;
 import org.neo4j.ogm.metadata.reflect.EntityAccessManager;
 import org.neo4j.ogm.metadata.reflect.EntityFactory;
-import org.neo4j.ogm.metadata.reflect.GenericUtils;
 import org.neo4j.ogm.model.RowModel;
 import org.neo4j.ogm.session.EntityInstantiator;
 import org.neo4j.ogm.support.ClassUtils;
@@ -162,7 +161,7 @@ public class SingleUseEntityMapper {
                 elementType = DescriptorMappings.getType(writer.getTypeDescriptor());
             }
 
-            Predicate<Class<?>> isCollectionLike = c -> c != null && (c.isArray() || Iterable.class.isAssignableFrom(c));
+            Predicate<Class<?>> isCollectionLike = c -> c != null && metadata.isIterable(c);
             boolean targetIsCollection = isCollectionLike.test(effectiveFieldType);
 
             Object value = property.getValue();
@@ -170,7 +169,7 @@ public class SingleUseEntityMapper {
             // In case we have not been able to determine a collection type from the the field
             // but the field is generic and we received something collection like we treat
             // the field as a collection anyway.
-            if (!targetIsCollection && GenericUtils.isGenericField(writer.getField())
+            if (!targetIsCollection && writer.getField().isGeneric()
                 && value != null && isCollectionLike.test(value.getClass())) {
                 targetIsCollection = true;
             }

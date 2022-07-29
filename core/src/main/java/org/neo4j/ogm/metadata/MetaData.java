@@ -18,6 +18,8 @@
  */
 package org.neo4j.ogm.metadata;
 
+import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -25,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import org.neo4j.ogm.annotation.NodeEntity;
 import org.neo4j.ogm.annotation.RelationshipEntity;
@@ -73,6 +76,38 @@ public class MetaData {
 
     public Schema getSchema() {
         return schema;
+    }
+
+    public <T> List<T> toList(T object) {
+        List<T> list = new ArrayList<>();
+        forEach(object, item -> list.add(item));
+        return list;
+    }
+
+    public boolean isIterable(Class<?> cls) {
+        return cls.isArray() || Iterable.class.isAssignableFrom(cls);
+    }
+
+    public <T> void forEach(T object, Consumer<T> callback) {
+        Iterable<T> objects;
+        if (object.getClass().isArray()) {
+            int length = Array.getLength(object);
+            List<T> copy = new ArrayList<>(length);
+            for (int i = 0; i < length; i++) {
+                T arrayElement = (T) Array.get(object, i);
+                copy.add(arrayElement);
+            }
+            objects = copy;
+        } else if (Iterable.class.isAssignableFrom(object.getClass())) {
+            objects = (Iterable<T>) object;
+        } else if (classInfo(object) != null) {
+            objects = Collections.singletonList(object);
+        } else {
+            throw new IllegalArgumentException("Class " + object.getClass() + " is not a valid entity class. "
+                + "Please check the entity mapping.");
+        }
+
+        objects.forEach(callback::accept);
     }
 
     /**

@@ -20,9 +20,15 @@ package org.neo4j.ogm.metadata;
 
 import static java.util.stream.Collectors.*;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.*;
@@ -42,6 +48,7 @@ import org.neo4j.ogm.exception.core.MetadataException;
 import org.neo4j.ogm.id.IdStrategy;
 import org.neo4j.ogm.id.InternalIdStrategy;
 import org.neo4j.ogm.id.UuidStrategy;
+import org.neo4j.ogm.metadata.reflect.ReflectionFieldAccessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,7 +106,7 @@ public class ClassInfo {
     private final Class<?> cls;
 
     private final Map<Class, List<FieldInfo>> iterableFieldsForType = new HashMap<>();
-    private final Map<FieldInfo, Field> fieldInfoFields = new ConcurrentHashMap<>();
+    private final Map<FieldInfo, FieldAccessor> fieldInfoFields = new ConcurrentHashMap<>();
 
     private volatile Map<String, FieldInfo> propertyFields;
     private volatile Map<String, FieldInfo> indexFields;
@@ -128,7 +135,7 @@ public class ClassInfo {
      * @param parent     Will be filled if containing class is a Kotlin class and this class is the type of a Kotlin delegate.
      * @param typeSystem The typesystem in use
      */
-    private ClassInfo(Class<?> cls, Field parent, TypeSystem typeSystem) {
+    private ClassInfo(Class<?> cls, FieldAccessor parent, TypeSystem typeSystem) {
         this.cls = cls;
         final int modifiers = cls.getModifiers();
         this.isInterface = Modifier.isInterface(modifiers);
@@ -170,7 +177,7 @@ public class ClassInfo {
                 continue;
             }
 
-            ClassInfo indirectSuperClass = new ClassInfo(field.getType(), field, typeSystem);
+            ClassInfo indirectSuperClass = new ClassInfo(field.getType(), new ReflectionFieldAccessor(field), typeSystem);
             this.extend(indirectSuperClass);
             this.indirectSuperClasses.add(indirectSuperClass);
         }
@@ -482,6 +489,223 @@ public class ClassInfo {
         return propertyName == null ? null : getOrComputePropertyFields().get(propertyName);
     }
 
+    /**
+     * Tries to discover type of given field.
+     * If the field ha a concrete type then there is nothing to do and it's type is returned.
+     * If the field has a generic type then it traverses class hierarchy of the concrete class to discover
+     * ParameterizedType with type parameter.
+     * If the field is parameterized but no parameter can be discovered, than {@code Object.class} will be returned.
+     *
+     * @param field         field
+     * @return type of the field
+     */
+    public Class findFieldType(FieldAccessor field) {
+
+        Class<?>[] arguments = resolveRawArguments(field.getGenericType(), cls);
+        if (arguments == null || arguments.length == 0 || arguments[0] == Unknown.class) {
+            return field.isParameterized() ? Object.class : field.getType();
+        }
+
+        return arguments[0];
+    }
+
+    /**
+     * Returns an array of raw classes representing arguments for the {@code genericType} using type variable information
+     * from the {@code subType}. Arguments for {@code genericType} that cannot be resolved are returned as
+     * {@code Unknown.class}. If no arguments can be resolved then {@code null} is returned.
+     *
+     * @param genericType to resolve arguments for
+     * @param subType     to extract type variable information from
+     * @return array of raw classes representing arguments for the {@code genericType} else {@code null} if no type
+     * arguments are declared
+     */
+    private static Class<?>[] resolveRawArguments(Type genericType, Class<?> subType) {
+        Class<?>[] result = null;
+        Class<?> functionalInterface = null;
+
+        // Handle lambdas
+        if (subType.isSynthetic()) {
+            Class<?> fi = genericType instanceof ParameterizedType
+                && ((ParameterizedType) genericType).getRawType() instanceof Class
+                ? (Class<?>) ((ParameterizedType) genericType).getRawType()
+                : genericType instanceof Class ? (Class<?>) genericType : null;
+            if (fi != null && fi.isInterface()) {
+                functionalInterface = fi;
+            }
+        }
+
+        if (genericType instanceof ParameterizedType) {
+            ParameterizedType paramType = (ParameterizedType) genericType;
+            Type[] arguments = paramType.getActualTypeArguments();
+            result = new Class[arguments.length];
+            for (int i = 0; i < arguments.length; i++) {
+                result[i] = resolveRawClass(arguments[i], subType, functionalInterface);
+            }
+        } else if (genericType instanceof TypeVariable) {
+            result = new Class[1];
+            result[0] = resolveRawClass(genericType, subType, functionalInterface);
+        } else if (genericType instanceof Class) {
+            TypeVariable<?>[] typeParams = ((Class<?>) genericType).getTypeParameters();
+            result = new Class[typeParams.length];
+            for (int i = 0; i < typeParams.length; i++) {
+                result[i] = resolveRawClass(typeParams[i], subType, functionalInterface);
+            }
+        }
+
+        return result;
+    }
+
+    private static Class<?> resolveRawClass(Type genericType, Class<?> subType, Class<?> functionalInterface) {
+        if (genericType instanceof Class) {
+            return (Class<?>) genericType;
+        } else if (genericType instanceof ParameterizedType) {
+            return resolveRawClass(((ParameterizedType) genericType).getRawType(), subType, functionalInterface);
+        } else if (genericType instanceof GenericArrayType) {
+            GenericArrayType arrayType = (GenericArrayType) genericType;
+            Class<?> component = resolveRawClass(arrayType.getGenericComponentType(), subType, functionalInterface);
+            return Array.newInstance(component, 0).getClass();
+        } else if (genericType instanceof TypeVariable) {
+            TypeVariable<?> variable = (TypeVariable<?>) genericType;
+            genericType = getTypeVariableMap(subType, functionalInterface).get(variable);
+            genericType = genericType == null ? resolveBound(variable)
+                : resolveRawClass(genericType, subType, functionalInterface);
+        } else if (genericType instanceof WildcardType && KotlinDetector.isKotlinType(subType)) {
+            WildcardType variable = (WildcardType) genericType;
+            if (variable.getUpperBounds().length == 1) {
+                genericType = variable.getUpperBounds()[0];
+            }
+        }
+
+        return genericType instanceof Class ? (Class<?>) genericType : Unknown.class;
+    }
+
+    private static Map<TypeVariable<?>, Type> getTypeVariableMap(final Class<?> targetType,
+        Class<?> functionalInterface) {
+        Map<TypeVariable<?>, Type> map = new HashMap<TypeVariable<?>, Type>();
+
+        // Populate interfaces
+        populateSuperTypeArgs(targetType.getGenericInterfaces(), map, functionalInterface != null);
+
+        // Populate super classes and interfaces
+        Type genericType = targetType.getGenericSuperclass();
+        Class<?> type = targetType.getSuperclass();
+        while (type != null && !Object.class.equals(type)) {
+            if (genericType instanceof ParameterizedType) {
+                populateTypeArgs((ParameterizedType) genericType, map, false);
+            }
+            populateSuperTypeArgs(type.getGenericInterfaces(), map, false);
+
+            genericType = type.getGenericSuperclass();
+            type = type.getSuperclass();
+        }
+
+        // Populate enclosing classes
+        type = targetType;
+        while (type.isMemberClass()) {
+            genericType = type.getGenericSuperclass();
+            if (genericType instanceof ParameterizedType) {
+                populateTypeArgs((ParameterizedType) genericType, map, functionalInterface != null);
+            }
+
+            type = type.getEnclosingClass();
+        }
+
+        return map;
+    }
+
+    /**
+     * Populates the {@code map} with with variable/argument pairs for the given {@code types}.
+     */
+    private static void populateSuperTypeArgs(final Type[] types, final Map<TypeVariable<?>, Type> map,
+        boolean depthFirst) {
+        for (Type type : types) {
+            if (type instanceof ParameterizedType) {
+                ParameterizedType parameterizedType = (ParameterizedType) type;
+                if (!depthFirst) {
+                    populateTypeArgs(parameterizedType, map, depthFirst);
+                }
+                Type rawType = parameterizedType.getRawType();
+                if (rawType instanceof Class) {
+                    populateSuperTypeArgs(((Class<?>) rawType).getGenericInterfaces(), map, depthFirst);
+                }
+                if (depthFirst) {
+                    populateTypeArgs(parameterizedType, map, depthFirst);
+                }
+            } else if (type instanceof Class) {
+                populateSuperTypeArgs(((Class<?>) type).getGenericInterfaces(), map, depthFirst);
+            }
+        }
+    }
+
+    /**
+     * Populates the {@code map} with variable/argument pairs for the given {@code type}.
+     */
+    private static void populateTypeArgs(ParameterizedType type, Map<TypeVariable<?>, Type> map, boolean depthFirst) {
+        if (type.getRawType() instanceof Class) {
+            TypeVariable<?>[] typeVariables = ((Class<?>) type.getRawType()).getTypeParameters();
+            Type[] typeArguments = type.getActualTypeArguments();
+
+            if (type.getOwnerType() != null) {
+                Type owner = type.getOwnerType();
+                if (owner instanceof ParameterizedType) {
+                    populateTypeArgs((ParameterizedType) owner, map, depthFirst);
+                }
+            }
+
+            for (int i = 0; i < typeArguments.length; i++) {
+                TypeVariable<?> variable = typeVariables[i];
+                Type typeArgument = typeArguments[i];
+
+                if (typeArgument instanceof Class) {
+                    map.put(variable, typeArgument);
+                } else if (typeArgument instanceof GenericArrayType) {
+                    map.put(variable, typeArgument);
+                } else if (typeArgument instanceof ParameterizedType) {
+                    map.put(variable, typeArgument);
+                } else if (typeArgument instanceof TypeVariable) {
+                    TypeVariable<?> typeVariableArgument = (TypeVariable<?>) typeArgument;
+                    if (depthFirst) {
+                        Type existingType = map.get(variable);
+                        if (existingType != null) {
+                            map.put(typeVariableArgument, existingType);
+                            continue;
+                        }
+                    }
+
+                    Type resolvedType = map.get(typeVariableArgument);
+                    if (resolvedType == null) {
+                        resolvedType = resolveBound(typeVariableArgument);
+                    }
+                    map.put(variable, resolvedType);
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolves the first bound for the {@code typeVariable}, returning {@code Unknown.class} if none can be resolved.
+     */
+    private static Type resolveBound(TypeVariable<?> typeVariable) {
+        Type[] bounds = typeVariable.getBounds();
+        if (bounds.length == 0) {
+            return Unknown.class;
+        }
+
+        Type bound = bounds[0];
+        if (bound instanceof TypeVariable) {
+            bound = resolveBound((TypeVariable<?>) bound);
+        }
+
+        return bound == Object.class ? Unknown.class : bound;
+    }
+
+    /**
+     * An unknown type.
+     */
+    private static final class Unknown {
+    }
+
+
     private Map<String, FieldInfo> getOrComputePropertyFields() {
 
         Map<String, FieldInfo> result = this.propertyFields;
@@ -645,13 +869,13 @@ public class ClassInfo {
         return null;
     }
 
-    public Field getField(FieldInfo fieldInfo) {
-        Field field = fieldInfoFields.get(fieldInfo);
+    public FieldAccessor getField(FieldInfo fieldInfo) {
+        FieldAccessor field = fieldInfoFields.get(fieldInfo);
         if (field != null) {
             return field;
         }
         try {
-            field = cls.getDeclaredField(fieldInfo.getName());
+            field = new ReflectionFieldAccessor(cls.getDeclaredField(fieldInfo.getName()));
             fieldInfoFields.put(fieldInfo, field);
             return field;
         } catch (NoSuchFieldException e) {
@@ -705,8 +929,8 @@ public class ClassInfo {
             // ClassInfo#getField has side-effects which I cannot judge
             // atm, so better keep it here
             // and wrap the predicate in an exception below.
-            Class type = getField(f).getType();
-            return type.isArray() || Iterable.class.isAssignableFrom(type);
+            FieldAccessor field = getField(f);
+            return field.isArray() || field.isIterable();
         };
 
         // See comment inside predicate regarding this exception.
@@ -780,6 +1004,10 @@ public class ClassInfo {
     }
 
     public boolean isTransient() {
+        return annotationsInfo.get(Transient.class) != null;
+    }
+
+    public boolean isIterable() {
         return annotationsInfo.get(Transient.class) != null;
     }
 
@@ -1233,13 +1461,12 @@ public class ClassInfo {
         return reader;
     }
 
-    static Object getInstanceOrDelegate(Object instance, Field delegateHolder) {
+    static Object getInstanceOrDelegate(Object instance, FieldAccessor delegateHolder) {
         if (delegateHolder == null) {
             return instance;
         } else {
             return AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
                 try {
-                    delegateHolder.setAccessible(true);
                     return delegateHolder.get(instance);
                 } catch (IllegalAccessException e) {
                     throw new RuntimeException(e);

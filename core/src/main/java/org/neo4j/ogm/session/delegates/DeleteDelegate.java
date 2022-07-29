@@ -20,8 +20,6 @@ package org.neo4j.ogm.session.delegates;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +55,7 @@ public class DeleteDelegate extends SessionDelegate {
     }
 
     public <T> void delete(T object) {
-        List<T> objectsForDeletion = createObjectsCollectionFromObject(object);
+        List<T> objectsForDeletion = session.metaData().toList(object);
         delete(objectsForDeletion);
     }
 
@@ -131,20 +129,6 @@ public class DeleteDelegate extends SessionDelegate {
 
     public void clear() {
         session.context().clear();
-    }
-
-    private <T> List<T> createObjectsCollectionFromObject(T object) {
-        List<T> objectCollection;
-        if (object.getClass().isArray()) {
-            T[] objectsAsArray = (T[]) object;
-            objectCollection = Arrays.asList(objectsAsArray);
-        } else if (Iterable.class.isAssignableFrom(object.getClass())) {
-            objectCollection = new ArrayList<>();
-            ((Iterable<T>) object).forEach(objectCollection::add);
-        } else {
-            objectCollection = Collections.singletonList(object);
-        }
-        return objectCollection;
     }
 
     private <T> void delete(List<T> objectsForDeletion) {
