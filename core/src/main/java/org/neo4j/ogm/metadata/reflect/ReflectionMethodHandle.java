@@ -22,12 +22,12 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-import org.neo4j.ogm.metadata.MethodAccessor;
+import org.neo4j.ogm.metadata.MethodHandle;
 
-public class ReflectionMethodAccessor implements MethodAccessor {
+public class ReflectionMethodHandle implements MethodHandle {
     private Method method;
 
-    public ReflectionMethodAccessor(Method method) {
+    public ReflectionMethodHandle(Method method) {
         this.method = method;
         this.method.setAccessible(true);
     }
@@ -54,6 +54,6 @@ public class ReflectionMethodAccessor implements MethodAccessor {
 
     @Override
     public boolean equals(Object obj) {
-        return (obj instanceof ReflectionMethodAccessor) && method.equals(((ReflectionMethodAccessor) obj).method);
+        return (obj instanceof ReflectionMethodHandle) && method.equals(((ReflectionMethodHandle) obj).method);
     }
 }

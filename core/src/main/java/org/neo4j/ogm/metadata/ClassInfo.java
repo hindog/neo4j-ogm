@@ -48,7 +48,7 @@ import org.neo4j.ogm.exception.core.MetadataException;
 import org.neo4j.ogm.id.IdStrategy;
 import org.neo4j.ogm.id.InternalIdStrategy;
 import org.neo4j.ogm.id.UuidStrategy;
-import org.neo4j.ogm.metadata.reflect.ReflectionFieldAccessor;
+import org.neo4j.ogm.metadata.reflect.ReflectionFieldHandle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,7 +106,7 @@ public class ClassInfo {
     private final Class<?> cls;
 
     private final Map<Class, List<FieldInfo>> iterableFieldsForType = new HashMap<>();
-    private final Map<FieldInfo, FieldAccessor> fieldInfoFields = new ConcurrentHashMap<>();
+    private final Map<FieldInfo, FieldHandle> fieldInfoFields = new ConcurrentHashMap<>();
 
     private volatile Map<String, FieldInfo> propertyFields;
     private volatile Map<String, FieldInfo> indexFields;
@@ -135,7 +135,7 @@ public class ClassInfo {
      * @param parent     Will be filled if containing class is a Kotlin class and this class is the type of a Kotlin delegate.
      * @param typeSystem The typesystem in use
      */
-    private ClassInfo(Class<?> cls, FieldAccessor parent, TypeSystem typeSystem) {
+    private ClassInfo(Class<?> cls, FieldHandle parent, TypeSystem typeSystem) {
         this.cls = cls;
         final int modifiers = cls.getModifiers();
         this.isInterface = Modifier.isInterface(modifiers);
@@ -177,7 +177,7 @@ public class ClassInfo {
                 continue;
             }
 
-            ClassInfo indirectSuperClass = new ClassInfo(field.getType(), new ReflectionFieldAccessor(field), typeSystem);
+            ClassInfo indirectSuperClass = new ClassInfo(field.getType(), new ReflectionFieldHandle(field), typeSystem);
             this.extend(indirectSuperClass);
             this.indirectSuperClasses.add(indirectSuperClass);
         }
@@ -499,7 +499,7 @@ public class ClassInfo {
      * @param field         field
      * @return type of the field
      */
-    public Class findFieldType(FieldAccessor field) {
+    public Class findFieldType(FieldHandle field) {
 
         Class<?>[] arguments = resolveRawArguments(field.getGenericType(), cls);
         if (arguments == null || arguments.length == 0 || arguments[0] == Unknown.class) {
@@ -869,13 +869,13 @@ public class ClassInfo {
         return null;
     }
 
-    public FieldAccessor getField(FieldInfo fieldInfo) {
-        FieldAccessor field = fieldInfoFields.get(fieldInfo);
+    public FieldHandle getField(FieldInfo fieldInfo) {
+        FieldHandle field = fieldInfoFields.get(fieldInfo);
         if (field != null) {
             return field;
         }
         try {
-            field = new ReflectionFieldAccessor(cls.getDeclaredField(fieldInfo.getName()));
+            field = new ReflectionFieldHandle(cls.getDeclaredField(fieldInfo.getName()));
             fieldInfoFields.put(fieldInfo, field);
             return field;
         } catch (NoSuchFieldException e) {
@@ -929,7 +929,7 @@ public class ClassInfo {
             // ClassInfo#getField has side-effects which I cannot judge
             // atm, so better keep it here
             // and wrap the predicate in an exception below.
-            FieldAccessor field = getField(f);
+            FieldHandle field = getField(f);
             return field.isArray() || field.isIterable();
         };
 
@@ -1461,7 +1461,7 @@ public class ClassInfo {
         return reader;
     }
 
-    static Object getInstanceOrDelegate(Object instance, FieldAccessor delegateHolder) {
+    static Object getInstanceOrDelegate(Object instance, FieldHandle delegateHolder) {
         if (delegateHolder == null) {
             return instance;
         } else {

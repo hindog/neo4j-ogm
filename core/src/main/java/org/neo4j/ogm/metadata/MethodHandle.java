@@ -21,7 +21,7 @@ package org.neo4j.ogm.metadata;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 
-public interface MethodAccessor {
+public interface MethodHandle {
 
     String getName();
 

@@ -19,7 +19,6 @@
 package org.neo4j.ogm.metadata;
 
 import static org.neo4j.ogm.metadata.ClassInfo.*;
-import static org.neo4j.ogm.metadata.reflect.GenericUtils.*;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.GenericArrayType;
@@ -74,8 +73,8 @@ public class FieldInfo {
     /**
      * Optional field holding a delegate, from which this method was derived.
      */
-    private final FieldAccessor delegateHolder;
-    private final FieldAccessor field;
+    private final FieldHandle delegateHolder;
+    private final FieldHandle field;
     private final Class<?> fieldType;
     /**
      * The associated attribute converter for this field, if applicable, otherwise null.
@@ -107,7 +106,7 @@ public class FieldInfo {
      *                                if that's not appropriate
      * @param annotations             The {@link ObjectAnnotations} applied to the field
      */
-    FieldInfo(ClassInfo classInfo, FieldAccessor delegateHolder, FieldAccessor field, String typeParameterDescriptor, ObjectAnnotations annotations,
+    FieldInfo(ClassInfo classInfo, FieldHandle delegateHolder, FieldHandle field, String typeParameterDescriptor, ObjectAnnotations annotations,
         Predicate<Class<?>> isSupportedNativeType) {
         this.containingClassInfo = classInfo;
         this.delegateHolder = delegateHolder;
@@ -433,7 +432,7 @@ public class FieldInfo {
     // From FieldAccessor
     // =================================================================================================================
 
-    public static void write(FieldAccessor field, Object instance, final Object value) {
+    public static void write(FieldHandle field, Object instance, final Object value) {
 
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
@@ -445,7 +444,7 @@ public class FieldInfo {
         });
     }
 
-    public static Object read(FieldAccessor field, Object instance) {
+    public static Object read(FieldHandle field, Object instance) {
 
         return AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
             try {
@@ -536,7 +535,7 @@ public class FieldInfo {
         return relationshipDirectionOrDefault(Direction.OUTGOING);
     }
 
-    public FieldAccessor getField() {
+    public FieldHandle getField() {
         return field;
     }
 
@@ -575,7 +574,7 @@ public class FieldInfo {
      * @param concreteClass concrete class that either declares the field or is a subclass of such class
      * @return type of the field
      */
-    public static Class findFieldType(FieldAccessor field, Class concreteClass) {
+    public static Class findFieldType(FieldHandle field, Class concreteClass) {
 
         Class<?>[] arguments = resolveRawArguments(field.getGenericType(), concreteClass);
         if (arguments == null || arguments.length == 0 || arguments[0] == Unknown.class) {

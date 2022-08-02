@@ -24,12 +24,12 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 
-import org.neo4j.ogm.metadata.FieldAccessor;
+import org.neo4j.ogm.metadata.FieldHandle;
 
-public class ReflectionFieldAccessor implements FieldAccessor {
+public class ReflectionFieldHandle implements FieldHandle {
     private Field field;
 
-    public ReflectionFieldAccessor(Field field) {
+    public ReflectionFieldHandle(Field field) {
         this.field = field;
         this.field.setAccessible(true);
     }
@@ -106,6 +106,6 @@ public class ReflectionFieldAccessor implements FieldAccessor {
 
     @Override
     public boolean equals(Object obj) {
-        return (obj instanceof ReflectionFieldAccessor) && field.equals(((ReflectionFieldAccessor) obj).field);
+        return (obj instanceof ReflectionFieldHandle) && field.equals(((ReflectionFieldHandle) obj).field);
     }
 }

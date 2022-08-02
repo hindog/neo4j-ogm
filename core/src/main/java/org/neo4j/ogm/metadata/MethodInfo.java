@@ -32,11 +32,11 @@ public class MethodInfo {
 
     private final String name;
     private final ObjectAnnotations annotations;
-    private final MethodAccessor method;
+    private final MethodHandle method;
     /**
      * Optional field holding a delegate, from which this method was derived.
      */
-    private final FieldAccessor delegateHolder;
+    private final FieldHandle delegateHolder;
 
     /**
      * Creates an info object for the given method and its declared annotation.
@@ -45,7 +45,7 @@ public class MethodInfo {
      * @param delegateHolder
      * @return A new method info object.
      */
-    static MethodInfo of(MethodAccessor method, FieldAccessor delegateHolder) {
+    static MethodInfo of(MethodHandle method, FieldHandle delegateHolder) {
         ObjectAnnotations objectAnnotations = ObjectAnnotations.of(method.getDeclaredAnnotations());
         return new MethodInfo(method, delegateHolder, objectAnnotations);
     }
@@ -55,7 +55,7 @@ public class MethodInfo {
      *
      * @param method The method.
      */
-    private MethodInfo(MethodAccessor method, FieldAccessor delegateHolder, ObjectAnnotations annotations) {
+    private MethodInfo(MethodHandle method, FieldHandle delegateHolder, ObjectAnnotations annotations) {
         this.method = method;
         this.name = method.getName();
         this.annotations = annotations;
@@ -76,7 +76,7 @@ public class MethodInfo {
      *
      * @return a Method, if it exists on the corresponding class.
      */
-    public MethodAccessor getMethod() {
+    public MethodHandle getMethod() {
         return method;
     }
 

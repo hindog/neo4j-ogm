@@ -21,7 +21,7 @@ package org.neo4j.ogm.metadata;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 
-public interface FieldAccessor {
+public interface FieldHandle {
 
     Type getGenericType();
 

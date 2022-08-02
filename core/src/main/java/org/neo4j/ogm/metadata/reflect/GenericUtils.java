@@ -27,7 +27,7 @@ import java.lang.reflect.WildcardType;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.neo4j.ogm.metadata.FieldAccessor;
+import org.neo4j.ogm.metadata.FieldHandle;
 import org.neo4j.ogm.metadata.KotlinDetector;
 
 /**
@@ -51,7 +51,7 @@ public final class GenericUtils {
      * @param concreteClass concrete class that either declares the field or is a subclass of such class
      * @return type of the field
      */
-    public static Class findFieldType(FieldAccessor field, Class concreteClass) {
+    public static Class findFieldType(FieldHandle field, Class concreteClass) {
 
         Class<?>[] arguments = resolveRawArguments(field.getGenericType(), concreteClass);
         if (arguments == null || arguments.length == 0 || arguments[0] == Unknown.class) {
